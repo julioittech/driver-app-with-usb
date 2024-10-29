@@ -65,11 +65,11 @@ def remove_single_quotes(input_string):
             .replace('nl', 'n')
             .replace('ul', 'u')
             .replace('T e', 'Te')
-            .replace('ll ', 'l ')
             .replace('o l', 'ol')
             .replace('l s', 'ls')
             .replace('l v', 'lv')
             .replace('l m', 'm')
+            .replace('ll', 'l')
             .replace(' } ', ' '))
 
 def draw_dot(color):
@@ -104,26 +104,157 @@ def draw_dot(color):
     root.after(1000, root.destroy)
 
     root.mainloop()
+
+def capture_screen():
+    # Capture the entire screen
+    screenshot = pyautogui.screenshot()
+    screenshot = cv2.cvtColor(np.array(screenshot), cv2.COLOR_RGB2BGR)
+    return screenshot
+
+def remove_top(image):
+    return image, None  
+
+def remove_left(image):    
+    lower_bound = np.array([40, 26, 177])  # Specify lower bound
+    upper_bound = np.array([80, 66, 255])  # Specify upper bound
+
+    mask = cv2.inRange(image, lower_bound, upper_bound)
+
+    # Scan the image from top to bottom to find the first non-zero pixel in the mask
+    height, width = mask.shape
+    print("remove_left", height, width)
+    white_flag = False
+    for x in range(width):
+        red_flag = False
+        for y in range(height):  
+            if mask[y, x] > 0:  # Found a pixel within the color range
+                white_flag = True
+                red_flag = True
+                break
+        if not red_flag and white_flag:
+            cropped_image = image[:, x+3:]  # Remove the top part
+            return cropped_image, x
+    
+    print("Color not found in the specified area.")
+    return image, None  # Return the original image if the color isn't found
+
+def remove_right(image):    
+    lower_bound = np.array([0, 0, 0])  # Specify lower bound
+    upper_bound = np.array([200, 200, 200])  # Specify upper bound
+
+    mask = cv2.inRange(image, lower_bound, upper_bound)
+
+    # Scan the image from top to bottom to find the first non-zero pixel in the mask
+    height, width = mask.shape
+    for x in range(width -1, 0, -1):
+        flag = False
+        for y in range(height):  
+            if (0 <= y < mask.shape[0]) and (0 <= x < mask.shape[1]):
+                if mask[y, x] > 0:  # Found a pixel within the color range
+                    flag = True
+                    break
+        if not flag:
+            cropped_image = image[:, :x]  # Remove the top part
+            return cropped_image, x
+    
+    print("Color not found in the specified area.")
+    return image, None  # Return the original image if the color isn't found
+
+def remove_bottom(image):
+    lower_bound = np.array([0, 0, 0])  # Specify lower bound
+    upper_bound = np.array([200, 200, 200])  # Specify upper bound
+    # Create a mask for the specific color range
+    mask = cv2.inRange(image, lower_bound, upper_bound)
+
+    # Scan the image from top to bottom to find the first non-zero pixel in the mask
+    height, width = mask.shape
+    
+    for y in range(height-1, 0, -1):
+        flag = False
+        for x in range(width):  
+            if (0 <= y < mask.shape[0]) and (0 <= x < mask.shape[1]):
+                if mask[y, x] > 0:  # Found a pixel within the color range
+                    flag = True
+                    break
+        if not flag:
+            cropped_image = image[:y, :]  # Remove the top part
+            return cropped_image, y
+    
+    print("Color not found in the specified area.")
+    return image, None  # Return the original image if the color isn't found
+
+def find_text_location(image, search_string):
+    # Apply OCR to the image
+    results = pytesseract.image_to_data(image, output_type=pytesseract.Output.DICT)
+
+    # Loop through the results
+    for i in range(len(results['text'])):
+        if results['text'][i].strip() == search_string:
+            # Get the bounding box coordinates
+            x = results['left'][i]
+            y = results['top'][i]
+            w = results['width'][i]
+            h = results['height'][i]
+
+            # print(f"Found '{search_string}' at (x: {x}, y: {y}), width: {w}, height: {h}")
+            
+            if search_string == "Domanda":
+                cropped_image = image[y+h:, x:]  # Remove the top part
+                return cropped_image, (x, y)
+            else:
+                cropped_image = image[:y, :x+w]  # Remove the top part
+                return cropped_image, (x, y)
+
+
+    return image, None
     
 
 def main_process():
-    
-    screenshot = pyautogui.screenshot(region=region)
+    text_find = False
+    extracted_text = ""
+    image = capture_screen()
 
-    # Convert the screenshot to an OpenCV format
-    screenshot_cv = cv2.cvtColor(np.array(screenshot), cv2.COLOR_RGB2BGR)
+    image, domanda_location = find_text_location(image, "Domanda")
+    cv2.imwrite('1.png', image)
+    if domanda_location != None:
+        image, risposta_location = find_text_location(image, "Risposta")
+        text_find = True
+        cv2.imwrite('2.png', image)
 
-    # Preprocessing for Tesseract
-    gray = cv2.cvtColor(screenshot_cv, cv2.COLOR_BGR2GRAY)
-    _, binary = cv2.threshold(gray, 150, 255, cv2.THRESH_BINARY)
-    
-    # Use Tesseract to do OCR on the processed image
-    custom_config = r'--oem 3 --psm 6'  # Experiment with different configs
-    extracted_text = remove_single_quotes(pytesseract.image_to_string(binary, lang='ita', config=custom_config).replace("\n", " ").rstrip())
+        if risposta_location != None:
+            image, top_location = remove_top(image)
+            cv2.imwrite('3.png', image)
 
-    # test_text = pytesseract.image_to_string(screenshot).replace("\n", " ").rstrip()
-    # print(f'row string: {test_text}')
-    screenshot.save("screenshot.png")
+            image, bottom_location = remove_bottom(image)
+            cv2.imwrite('4.png', image)
+
+            image, right_location = remove_right(image)
+            cv2.imwrite('5.png', image)
+
+            image, left_location = remove_left(image)
+            cv2.imwrite('6.png', image)
+
+    if text_find:
+        # Use Tesseract to do OCR on the processed image
+        custom_config = r'--oem 3 --psm 6'  # Experiment with different configs
+        extracted_text = remove_single_quotes(pytesseract.image_to_string(image, lang='ita', config=custom_config).replace("\n", " ").rstrip())
+
+        test_text = pytesseract.image_to_string(image).replace("\n", " ").rstrip()
+        print(f'row string: {test_text}')
+    else:
+        screenshot = pyautogui.screenshot(region=region)
+
+        # Convert the screenshot to an OpenCV format
+        screenshot_cv = cv2.cvtColor(np.array(screenshot), cv2.COLOR_RGB2BGR)
+
+        # Preprocessing for Tesseract
+        gray = cv2.cvtColor(screenshot_cv, cv2.COLOR_BGR2GRAY)
+        _, binary = cv2.threshold(gray, 150, 255, cv2.THRESH_BINARY)
+        
+        # Use Tesseract to do OCR on the processed image
+        custom_config = r'--oem 3 --psm 6'  # Experiment with different configs
+        extracted_text = remove_single_quotes(pytesseract.image_to_string(binary, lang='ita', config=custom_config).replace("\n", " ").rstrip())
+
 
     filename = 'quizzes.csv'
     # filename = '~/Documents/driving/quizzes.csv'
@@ -145,6 +276,7 @@ def main_process():
                     draw_dot('green')
                 else:
                     draw_dot('red')
+                break
         if not found:
             print(f'String "{extracted_text}" not found in the CSV.')
             draw_dot('black')
