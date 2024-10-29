@@ -122,7 +122,6 @@ def remove_left(image):
 
     # Scan the image from top to bottom to find the first non-zero pixel in the mask
     height, width = mask.shape
-    print("remove_left", height, width)
     white_flag = False
     for x in range(width):
         red_flag = False
@@ -135,7 +134,6 @@ def remove_left(image):
             cropped_image = image[:, x+3:]  # Remove the top part
             return cropped_image, x
     
-    print("Color not found in the specified area.")
     return image, None  # Return the original image if the color isn't found
 
 def remove_right(image):    
@@ -156,8 +154,7 @@ def remove_right(image):
         if not flag:
             cropped_image = image[:, :x]  # Remove the top part
             return cropped_image, x
-    
-    print("Color not found in the specified area.")
+
     return image, None  # Return the original image if the color isn't found
 
 def remove_bottom(image):
@@ -180,7 +177,6 @@ def remove_bottom(image):
             cropped_image = image[:y, :]  # Remove the top part
             return cropped_image, y
     
-    print("Color not found in the specified area.")
     return image, None  # Return the original image if the color isn't found
 
 def find_text_location(image, search_string):
@@ -215,32 +211,32 @@ def main_process():
     image = capture_screen()
 
     image, domanda_location = find_text_location(image, "Domanda")
-    cv2.imwrite('1.png', image)
+    # cv2.imwrite('1.png', image)
     if domanda_location != None:
         image, risposta_location = find_text_location(image, "Risposta")
         text_find = True
-        cv2.imwrite('2.png', image)
+        # cv2.imwrite('2.png', image)
 
         if risposta_location != None:
             image, top_location = remove_top(image)
-            cv2.imwrite('3.png', image)
+            # cv2.imwrite('3.png', image)
 
             image, bottom_location = remove_bottom(image)
-            cv2.imwrite('4.png', image)
+            # cv2.imwrite('4.png', image)
 
             image, right_location = remove_right(image)
-            cv2.imwrite('5.png', image)
+            # cv2.imwrite('5.png', image)
 
             image, left_location = remove_left(image)
-            cv2.imwrite('6.png', image)
+            # cv2.imwrite('6.png', image)
 
     if text_find:
         # Use Tesseract to do OCR on the processed image
         custom_config = r'--oem 3 --psm 6'  # Experiment with different configs
         extracted_text = remove_single_quotes(pytesseract.image_to_string(image, lang='ita', config=custom_config).replace("\n", " ").rstrip())
 
-        test_text = pytesseract.image_to_string(image).replace("\n", " ").rstrip()
-        print(f'row string: {test_text}')
+        # test_text = pytesseract.image_to_string(image).replace("\n", " ").rstrip()
+        # print(f'row string: {test_text}')
     else:
         screenshot = pyautogui.screenshot(region=region)
 
