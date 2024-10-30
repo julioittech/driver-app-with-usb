@@ -13,7 +13,6 @@ os.environ['TESSDATA_PREFIX'] = os.path.dirname(os.path.abspath(__file__))
 
 s_width, s_height = pyautogui.size()
 region = (int(s_width * 0.296), int(s_height * 0.19), int(s_width * 0.56),  int(s_height * 0.125))
-# region = (350, 250, 740, 300) 
 
 def remove_single_quotes(input_string):
     return (input_string
@@ -37,6 +36,7 @@ def remove_single_quotes(input_string):
             .replace('“', '"')
             .replace('N', 'V')
             .replace('i', 'l')
+            .replace('î', 'l')
             .replace('f', 'l')
             .replace('1', 'l')
             .replace('I', 'l')
@@ -64,7 +64,9 @@ def remove_single_quotes(input_string):
             .replace('rl', 'n')
             .replace('nl', 'n')
             .replace('ul', 'u')
+            .replace('5 t', '5t')
             .replace('T e', 'Te')
+            .replace('D e', 'De')
             .replace('o l', 'ol')
             .replace('l s', 'ls')
             .replace('l v', 'lv')
@@ -113,6 +115,26 @@ def capture_screen():
 
 def remove_top(image):
     return image, None  
+
+def preprocess_left(image):    
+    lower_bound = np.array([181, 51, 20])  # Specify lower bound
+    upper_bound = np.array([255, 150, 60])  # Specify upper bound
+
+    mask = cv2.inRange(image, lower_bound, upper_bound)
+
+    # Scan the image from top to bottom to find the first non-zero pixel in the mask
+    height, width = mask.shape
+    for x in range(width):
+        flag = False
+        for y in range(int(height*0.5)):  
+            if mask[y, x] > 0:  # Found a pixel within the color range
+                flag = True
+                break
+        if not flag:
+            cropped_image = image[:, x+3:]  # Remove the top part
+            return cropped_image
+    
+    return image  # Return the original image if the color isn't found
 
 def remove_left(image):    
     lower_bound = np.array([40, 26, 177])  # Specify lower bound
@@ -179,10 +201,27 @@ def remove_bottom(image):
     
     return image, None  # Return the original image if the color isn't found
 
-def find_text_location(image, search_string):
-    # Apply OCR to the image
-    results = pytesseract.image_to_data(image, output_type=pytesseract.Output.DICT)
+def preprocess_roi(roi):
+    # Convert to grayscale
+    gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
+    # Apply Gaussian Blur
+    blurred = cv2.GaussianBlur(gray, (5, 5), 0)
+    # Apply adaptive thresholding
+    thresholded = cv2.adaptiveThreshold(blurred, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 2)
+    
+    return thresholded
 
+def find_text_location(image, search_string):
+    height, width, _ = image.shape
+
+    roi = image[0:int(height * 0.3), :]
+
+    processed_roi = preprocess_roi(roi)
+
+    # roi = cv2.adaptiveThreshold(roi, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 2)
+    custom_config = r'--oem 3 --psm 6 -l ita+eng'
+    # Apply OCR to the image
+    results = pytesseract.image_to_data(processed_roi, output_type=pytesseract.Output.DICT, config=custom_config)
     # Loop through the results
     for i in range(len(results['text'])):
         if results['text'][i].strip() == search_string:
@@ -193,23 +232,21 @@ def find_text_location(image, search_string):
             h = results['height'][i]
 
             # print(f"Found '{search_string}' at (x: {x}, y: {y}), width: {w}, height: {h}")
-            
-            if search_string == "Domanda":
+            if(search_string == "Domanda"): 
                 cropped_image = image[y+h:, x:]  # Remove the top part
                 return cropped_image, (x, y)
             else:
                 cropped_image = image[:y, :x+w]  # Remove the top part
                 return cropped_image, (x, y)
-
-
+                
     return image, None
     
-
 def main_process():
     text_find = False
     extracted_text = ""
     image = capture_screen()
-
+    image = preprocess_left(image)
+    # cv2.imwrite('left.png', image)
     image, domanda_location = find_text_location(image, "Domanda")
     # cv2.imwrite('1.png', image)
     if domanda_location != None:
@@ -237,19 +274,19 @@ def main_process():
 
         # test_text = pytesseract.image_to_string(image).replace("\n", " ").rstrip()
         # print(f'row string: {test_text}')
-    else:
-        screenshot = pyautogui.screenshot(region=region)
+    # else:
+        # screenshot = pyautogui.screenshot(region=region)
 
         # Convert the screenshot to an OpenCV format
-        screenshot_cv = cv2.cvtColor(np.array(screenshot), cv2.COLOR_RGB2BGR)
+        # screenshot_cv = cv2.cvtColor(np.array(screenshot), cv2.COLOR_RGB2BGR)
 
         # Preprocessing for Tesseract
-        gray = cv2.cvtColor(screenshot_cv, cv2.COLOR_BGR2GRAY)
-        _, binary = cv2.threshold(gray, 150, 255, cv2.THRESH_BINARY)
+        # gray = cv2.cvtColor(screenshot_cv, cv2.COLOR_BGR2GRAY)
+        # _, binary = cv2.threshold(gray, 150, 255, cv2.THRESH_BINARY)
         
         # Use Tesseract to do OCR on the processed image
-        custom_config = r'--oem 3 --psm 6'  # Experiment with different configs
-        extracted_text = remove_single_quotes(pytesseract.image_to_string(binary, lang='ita', config=custom_config).replace("\n", " ").rstrip())
+        # custom_config = r'--oem 3 --psm 6'  # Experiment with different configs
+        # extracted_text = remove_single_quotes(pytesseract.image_to_string(binary, lang='ita', config=custom_config).replace("\n", " ").rstrip())
 
 
     filename = 'quizzes.csv'
