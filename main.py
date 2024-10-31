@@ -14,6 +14,10 @@ os.environ['TESSDATA_PREFIX'] = os.path.dirname(os.path.abspath(__file__))
 s_width, s_height = pyautogui.size()
 region = (int(s_width * 0.296), int(s_height * 0.19), int(s_width * 0.56),  int(s_height * 0.125))
 
+b_xposition = 0
+b_yposition = 0
+exit_flag = False
+
 def remove_single_quotes(input_string):
     return (input_string
             .replace("() ", "")
@@ -35,6 +39,7 @@ def remove_single_quotes(input_string):
             .replace("‘", "")
             .replace('“', '"')
             .replace('N', 'V')
+            .replace('K', 'k')
             .replace('i', 'l')
             .replace('î', 'l')
             .replace('f', 'l')
@@ -107,6 +112,31 @@ def draw_dot(color):
 
     root.mainloop()
 
+def on_click(event):
+    global exit_flag
+    # print("button clicked!! Perfect!!!")
+    exit_flag = True
+    
+def terminate_button():
+    global b_xposition, b_yposition, exit_flag
+
+    if b_xposition == 0 or b_yposition == 0:
+        return
+    
+    root = tk.Tk()
+    root.geometry(f"110x25+{b_xposition}+{b_yposition}")  # A larger window to accommodate the shapes
+    root.configure(background='#F0F0F0')  # Set window background color to white
+    root.overrideredirect(True)
+
+    root.bind("<Button-1>", on_click)
+
+    # Close the window after 1000 ms
+    root.after(2000, root.destroy)
+
+    root.mainloop()
+    if(exit_flag):
+        exit()
+
 def capture_screen():
     # Capture the entire screen
     screenshot = pyautogui.screenshot()
@@ -117,6 +147,9 @@ def remove_top(image):
     return image, None  
 
 def preprocess_left(image):    
+    global b_xposition, b_yposition
+    b_xposition = 0
+    b_yposition = 0
     lower_bound = np.array([181, 51, 20])  # Specify lower bound
     upper_bound = np.array([255, 150, 60])  # Specify upper bound
 
@@ -132,6 +165,7 @@ def preprocess_left(image):
                 break
         if not flag:
             cropped_image = image[:, x+3:]  # Remove the top part
+            b_xposition = x + 3
             return cropped_image
     
     return image  # Return the original image if the color isn't found
@@ -212,6 +246,7 @@ def preprocess_roi(roi):
     return thresholded
 
 def find_text_location(image, search_string):
+    global b_xposition, b_yposition
     height, width, _ = image.shape
 
     roi = image[0:int(height * 0.3), :]
@@ -234,9 +269,13 @@ def find_text_location(image, search_string):
             # print(f"Found '{search_string}' at (x: {x}, y: {y}), width: {w}, height: {h}")
             if(search_string == "Domanda"): 
                 cropped_image = image[y+h:, x:]  # Remove the top part
+                b_xposition += x
+                b_yposition += y+h
                 return cropped_image, (x, y)
             else:
                 cropped_image = image[:y, :x+w]  # Remove the top part
+                b_xposition += x
+                b_yposition += y+h
                 return cropped_image, (x, y)
                 
     return image, None
@@ -317,7 +356,7 @@ def main_process():
 while(1):
     try:
         main_process()
-        time.sleep(1)
+        terminate_button()
 
     except KeyboardInterrupt:
         break
