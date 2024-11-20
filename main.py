@@ -119,14 +119,19 @@ def on_click(event):
     
 def terminate_button():
     global b_xposition, b_yposition, exit_flag
+    # print("ternaiate button", b_xposition, b_yposition)
 
     if b_xposition == 0 or b_yposition == 0:
         return
-    
     root = tk.Tk()
-    root.geometry(f"110x25+{b_xposition}+{b_yposition}")  # A larger window to accommodate the shapes
-    root.configure(background='#F0F0F0')  # Set window background color to white
+    root.geometry(f"20x20+1+{b_yposition + 1}")  # A larger window to accommodate the shapes
+    root.configure(background='#2865C9')  # Set window background color 
     root.overrideredirect(True)
+
+
+    root.wm_attributes('-type', 'splash')
+    root.attributes('-alpha', 1.0)
+    root.attributes('-topmost', True)  
 
     root.bind("<Button-1>", on_click)
 
@@ -147,9 +152,6 @@ def remove_top(image):
     return image, None  
 
 def preprocess_left(image):    
-    global b_xposition, b_yposition
-    b_xposition = 0
-    b_yposition = 0
     lower_bound = np.array([181, 51, 20])  # Specify lower bound
     upper_bound = np.array([255, 150, 60])  # Specify upper bound
 
@@ -165,10 +167,29 @@ def preprocess_left(image):
                 break
         if not flag:
             cropped_image = image[:, x+3:]  # Remove the top part
-            b_xposition = x + 3
-            return cropped_image
+            left_image = image[:, :x]
+            return cropped_image, left_image
     
-    return image  # Return the original image if the color isn't found
+    return image, None  # Return the original image if the color isn't found
+
+def cal_bposition(image):    
+    global b_xposition, b_yposition
+    b_xposition = 0
+    b_yposition = 0
+    lower_bound = np.array([40, 26, 177])  # Specify lower bound
+    upper_bound = np.array([80, 66, 255])  # Specify upper bound
+
+    mask = cv2.inRange(image, lower_bound, upper_bound)
+
+    # Scan the image from top to bottom to find the first non-zero pixel in the mask
+    height, width = mask.shape
+    for y in range(int(height*0.7), height):
+        red_flag = False
+        for x in range(width):  
+            if mask[y, x] > 0:  # Found a pixel within the color range
+                b_xposition = x
+                b_yposition = y
+                return
 
 def remove_left(image):    
     lower_bound = np.array([40, 26, 177])  # Specify lower bound
@@ -200,6 +221,7 @@ def remove_right(image):
 
     # Scan the image from top to bottom to find the first non-zero pixel in the mask
     height, width = mask.shape
+
     for x in range(width -1, 0, -1):
         flag = False
         for y in range(height):  
@@ -246,7 +268,6 @@ def preprocess_roi(roi):
     return thresholded
 
 def find_text_location(image, search_string):
-    global b_xposition, b_yposition
     height, width, _ = image.shape
 
     roi = image[0:int(height * 0.3), :]
@@ -269,13 +290,9 @@ def find_text_location(image, search_string):
             # print(f"Found '{search_string}' at (x: {x}, y: {y}), width: {w}, height: {h}")
             if(search_string == "Domanda"): 
                 cropped_image = image[y+h:, x:]  # Remove the top part
-                b_xposition += x
-                b_yposition += y+h
                 return cropped_image, (x, y)
             else:
                 cropped_image = image[:y, :x+w]  # Remove the top part
-                b_xposition += x
-                b_yposition += y+h
                 return cropped_image, (x, y)
                 
     return image, None
@@ -284,7 +301,10 @@ def main_process():
     text_find = False
     extracted_text = ""
     image = capture_screen()
-    image = preprocess_left(image)
+    image, left_image = preprocess_left(image)
+
+    if left_image is not None and left_image.size > 0:
+        cal_bposition(left_image)
     # cv2.imwrite('left.png', image)
     image, domanda_location = find_text_location(image, "Domanda")
     # cv2.imwrite('1.png', image)
@@ -313,20 +333,6 @@ def main_process():
 
         # test_text = pytesseract.image_to_string(image).replace("\n", " ").rstrip()
         # print(f'row string: {test_text}')
-    # else:
-        # screenshot = pyautogui.screenshot(region=region)
-
-        # Convert the screenshot to an OpenCV format
-        # screenshot_cv = cv2.cvtColor(np.array(screenshot), cv2.COLOR_RGB2BGR)
-
-        # Preprocessing for Tesseract
-        # gray = cv2.cvtColor(screenshot_cv, cv2.COLOR_BGR2GRAY)
-        # _, binary = cv2.threshold(gray, 150, 255, cv2.THRESH_BINARY)
-        
-        # Use Tesseract to do OCR on the processed image
-        # custom_config = r'--oem 3 --psm 6'  # Experiment with different configs
-        # extracted_text = remove_single_quotes(pytesseract.image_to_string(binary, lang='ita', config=custom_config).replace("\n", " ").rstrip())
-
 
     filename = 'quizzes.csv'
     # filename = '~/Documents/driving/quizzes.csv'
