@@ -6,12 +6,10 @@ from PIL import Image
 
 pytesseract.tesseract_cmd = r"/usr/bin/tesseract"
 
-# Load the quizzes DataFrame
 csv_path = './quizzes.csv'
 quizzes_df = pd.read_csv(csv_path)
 
 def capture_and_process():
-    # Open the camera
     cap = cv2.VideoCapture(0)  # Use 0 for the default camera
 
     if not cap.isOpened():
