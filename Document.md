@@ -52,6 +52,7 @@ To successfully run this system, the following software and libraries must be in
 4. **GPIO Setup**:
    If using a Raspberry Pi or equivalent hardware, ensure you have the GPIO setup ready. Install the GPIO libraries and ensure the `gpioset` utility is available to toggle the LED connected to the designated pin.
 
+
 #### **Running the System**
 1. **Camera Setup**:
    Ensure your camera is properly connected and accessible. The system uses the default camera (index `0`). If you have multiple cameras or want to use a specific one, you can modify the camera index in the code.
@@ -121,3 +122,7 @@ To successfully run this system, the following software and libraries must be in
   
 #### **Conclusion**
 This system leverages OCR to process real-time camera feeds, matches extracted text with quiz questions stored in an SQLite database, and provides feedback via GPIO control. By following the steps outlined in this documentation, you can set up, run, and customize the system for various use cases, such as automated quizzes or interactive learning platforms.
+
+
+#### **Note**
+Disabling the Bluetooth and Wifi if not used will help in consuming less power and also keep it from getting hot. Recommended to use the heat sink and fan. Attatch external 3.3V power source to the Piezeo vibrarotor for smooth working. 
