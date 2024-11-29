@@ -49,16 +49,42 @@ sudo apt install tesseract-ocr-ita
    What is the capital of Italy?,Rome
    ```
 
-2. Place the script file (`main.py`) in the same directory.
+2. Place the script file (`final_version.py`) in the same directory.
 
 ---
+
 
 ## Running the Script
 
 Run the script to start the camera feed:
 ```bash
-python3 main.py
+python3 final_version.py
 ```
+
+
+# Updated way to run Script
+
+## Installation Steps
+
+1. Open the terminal and navigate to the project directory:
+   ```bash
+   cd ./Desktop/ocr/
+   ```
+
+2. Make the automation script executable:
+   ```bash
+   sudo chmod +x ./automate.sh
+   ```
+
+3. Run the automation script:
+   ```bash
+   ./automate.sh
+   ```
+## Notes
+- Python 3.x
+- Virtual environment must be set up at `./Desktop/Cam2new/vsch/`
+- Project files must be in `./Desktop/ocr/`
+
 
 ### Controls:
 - **Press `c`**: Capture an image and perform OCR.
