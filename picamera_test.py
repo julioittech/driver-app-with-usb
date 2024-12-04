@@ -1,20 +1,19 @@
-from picamera2 import Picamera2
+from picamera import PiCamera
 import time
 
 def init_camera():
     try:
-        picam2 = Picamera2()
+        # Initialize camera
+        camera = PiCamera()
         
-        # Configure camera
-        config = picam2.create_still_configuration()
-        picam2.configure(config)
-        
-        picam2.start()
-        print("Camera initialized successfully")
-        
+        # Let camera warm up
         time.sleep(2)
         
-        return picam2
+        # Optional: rotate camera if needed
+        # camera.rotation = 180
+        
+        print("Camera initialized successfully")
+        return camera
         
     except Exception as e:
         print(f"Error initializing camera: {e}")
@@ -23,17 +22,22 @@ def init_camera():
 def take_test_photo(camera):
     if camera:
         try:
-            camera.capture_file("test_photo.jpg")
+            # Capture image
+            camera.capture('test_photo.jpg')
             print("Test photo captured successfully")
         except Exception as e:
             print(f"Error taking photo: {e}")
 
 def main():
+    # Initialize camera
     camera = init_camera()
     
     if camera:
+        # Take test photo
         take_test_photo(camera)
-        camera.stop()
+        
+        # Close camera properly
+        camera.close()
         print("Camera stopped")
 
 if __name__ == "__main__":
