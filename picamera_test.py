@@ -1,48 +1,53 @@
 from picamera2 import Picamera2
+import cv2
 import time
 
 def init_camera():
     try:
-        # Initialize camera
         picam2 = Picamera2()
-        
-        # Configure camera
-        config = picam2.create_still_configuration()
+        config = picam2.create_preview_configuration()
         picam2.configure(config)
-        
-        # Start camera
         picam2.start()
-        print("Camera initialized successfully")
-        
-        # Let camera warm up
         time.sleep(2)
-        
         return picam2
-        
     except Exception as e:
         print(f"Error initializing camera: {e}")
         return None
 
-def take_test_photo(camera):
-    if camera:
-        try:
-            # Capture image
-            camera.capture_file("test_photo.jpg")
-            print("Test photo captured successfully")
-        except Exception as e:
-            print(f"Error taking photo: {e}")
-
-def main():
-    # Initialize camera
+def run_video_with_recording():
     camera = init_camera()
     
-    if camera:
-        # Take test photo
-        take_test_photo(camera)
+    if not camera:
+        print("Failed to initialize camera")
+        return
         
-        # Stop camera properly
+    # Define the codec and create VideoWriter object
+    fourcc = cv2.VideoWriter_fourcc(*'XVID')
+    out = cv2.VideoWriter('output.avi', fourcc, 20.0, (640,480))
+    
+    try:
+        while True:
+            frame = camera.capture_array()
+            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            
+            # Write the frame
+            out.write(frame)
+            
+            # Display frame
+            cv2.imshow("Camera Feed", frame)
+            
+            if cv2.waitKey(1) & 0xFF == ord('q'):
+                break
+                
+    except Exception as e:
+        print(f"Error during video capture: {e}")
+    
+    finally:
+        # Cleanup
         camera.stop()
-        print("Camera stopped")
+        out.release()
+        cv2.destroyAllWindows()
+        print("Camera stopped and video saved")
 
 if __name__ == "__main__":
-    main()
+    run_video_with_recording()
