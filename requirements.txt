@@ -1,0 +1,6 @@
+numpy
+opencv-python
+pytesseract
+picamera2
+fuzzywuzzy
+python-Levenshtein

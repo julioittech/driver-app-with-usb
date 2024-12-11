@@ -1,32 +1,38 @@
 import cv2
 import numpy as np
 import sqlite3
+from picamera2 import Picamera2, Preview
 from pytesseract import image_to_string, pytesseract
 from fuzzywuzzy import fuzz, process
 from PIL import Image
-import threading
 import queue
-import os
+import RPi.GPIO as GPIO
+import time
 
 pytesseract.tesseract_cmd = r"/usr/bin/tesseract"
-db_path = './quizzes.db'
-LED_PIN = 20
-GPIO_CHIP = 'gpiochip4'
+
 frame_queue = queue.Queue()
 result_queue = queue.Queue()
 
-def toggle_gpio(pin, state):
-    """Use os.system to toggle GPIO pin state."""
-    os.system(f"gpioset {GPIO_CHIP} {pin}={state}")
+VIBRATION_PIN = 20
+GPIO.setmode(GPIO.BCM)
+GPIO.setup(VIBRATION_PIN, GPIO.OUT)
 
-def fetch_questions_and_answers():
-    """Fetch all questions and answers from the SQLite database."""
-    conn = sqlite3.connect(db_path)
-    cursor = conn.cursor()
-    cursor.execute("SELECT Question, Answer FROM quizzes")
-    data = cursor.fetchall()
-    conn.close()
-    return data
+conn = sqlite3.connect('./quizzes.db')
+cursor = conn.cursor()
+cursor.execute("SELECT Question, Answer FROM quizzes")
+quizzes_data = cursor.fetchall()
+conn.close()
+questions = [row[0] for row in quizzes_data]
+previous_question = ''
+
+def vibrate(count):
+    for _ in range(count):
+        print("Started vibration")
+        GPIO.output(VIBRATION_PIN, GPIO.HIGH)
+        time.sleep(0.2)
+        GPIO.output(VIBRATION_PIN, GPIO.LOW)
+        time.sleep(0.2)
 
 def preprocess_image(frame):
     """Enhance image quality for better OCR results."""
@@ -89,87 +95,68 @@ def extract_text_from_regions(image, regions):
     
     return ' '.join(extracted_texts)
 
-def ocr_processing_thread():
-    quizzes_data = fetch_questions_and_answers()
-    questions = [row[0] for row in quizzes_data]
-    
-    while True:
-        if not frame_queue.empty():
-            frame = frame_queue.get()
-            try:
-                processed_image = preprocess_image(frame)
-                
-                text_regions = find_text_regions(processed_image)
-                
-                extracted_text = extract_text_from_regions(processed_image, text_regions)
-                
-                if extracted_text:
-                    extracted_text_clean = ' '.join(extracted_text.split())
+def ocr_processing_thread(frame):
+    global previous_question
+    try:
+        processed_image = preprocess_image(frame)
+        text_regions = find_text_regions(processed_image)
+        extracted_text = extract_text_from_regions(processed_image, text_regions)
+        print(extracted_text)
+        if extracted_text:
+            extracted_text_clean = ' '.join(extracted_text.split())
                     
-                    best_match, match_score = process.extractOne(
-                        extracted_text_clean,
-                        questions,
-                        scorer=fuzz.partial_ratio
-                    )
+            best_match, match_score = process.extractOne(
+                extracted_text_clean,
+                questions,
+                scorer=fuzz.partial_ratio
+            )
                     
-                    if match_score > 80:  # Match threshold
-                        answer = next((row[1] for row in quizzes_data if row[0] == best_match), None)
-                        result = f"Question: {best_match}\nAnswer: {answer}\nMatch Score: {match_score}"
-                        toggle_gpio(LED_PIN, 1)
-                    else:
-                        result = f"No match found. Best match score: {match_score}"
-                        toggle_gpio(LED_PIN, 0)
+            if match_score > 80 and match_score < 100:  # Match threshold
+                answer = next((row[1] for row in quizzes_data if row[0] == best_match), None)
+                result = f"Question: {best_match}\nAnswer: {answer}\nMatch Score: {match_score}"
+                if best_match == previous_question:
+                    print('Already rings')
+                    return
+                previous_question = best_match
+                if answer == 'V':
+                    vibrate(2)
+                else:
+                    vibrate(1)
+            else:
+                result = f"No match found. Best match score: {match_score}"
                         
-                    result_queue.put(result)
+            print(result)
                     
-            except Exception as e:
-                result_queue.put(f"Error during processing: {str(e)}")
-                toggle_gpio(LED_PIN, 0)
+    except Exception as e:
+        print(f"Error during processing: {str(e)}")
 
 def capture_and_process():
-    cap = cv2.VideoCapture(0)
-    if not cap.isOpened():
-        print("Error: Unable to access the camera.")
-        return
+    picam2 = Picamera2()
+
+    picam2.configure(picam2.create_preview_configuration(main={'size': (1920, 1080)}))
+    picam2.set_controls({'AeEnable': 1})
+
+    # picam2.start_preview(Preview.QTGL)s
     
-    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1920)
-    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080)
-    cap.set(cv2.CAP_PROP_AUTOFOCUS, 1)
-    cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, 1)
-    
-    print("Processing frames in real-time. Press 'q' to quit.")
-    
-    threading.Thread(target=ocr_processing_thread, daemon=True).start()
-    
-    frame_counter = 0
-    frame_skip = 5 
+    # threading.Thread(target=ocr_processing_thread, daemon=True).start()
+    picam2.start()
     
     try:
         while True:
-            ret, frame = cap.read()
-            if not ret:
-                print("Error: Failed to capture frame.")
-                break
+            frame = picam2.capture_array()
+            frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
             
             cv2.imshow("Camera Feed", frame)
             
-            if frame_counter % frame_skip == 0:
-                toggle_gpio(LED_PIN, 0)
-                if frame_queue.qsize() < 2:
-                    frame_queue.put(frame)
-            
-            if not result_queue.empty():
-                print("\n" + result_queue.get() + "\n")
+            ocr_processing_thread(frame)
             
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 break
-                
-            frame_counter += 1
             
     finally:
-        toggle_gpio(LED_PIN, 0)
-        cap.release()
+        picam2.stop()
         cv2.destroyAllWindows()
 
 if __name__ == "__main__":
+    vibrate(3)
     capture_and_process()
