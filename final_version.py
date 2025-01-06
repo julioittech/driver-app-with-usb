@@ -1,3 +1,6 @@
+import time
+time.sleep(10)
+
 import cv2
 import numpy as np
 import sqlite3
@@ -7,18 +10,20 @@ from fuzzywuzzy import fuzz, process
 from PIL import Image
 import queue
 import RPi.GPIO as GPIO
-import time
+
 
 pytesseract.tesseract_cmd = r"/usr/bin/tesseract"
 
 frame_queue = queue.Queue()
 result_queue = queue.Queue()
-
-VIBRATION_PIN = 20
+GPIO.cleanup()
+GPIO.setwarnings(False)  # Ignore warnings
 GPIO.setmode(GPIO.BCM)
+
+VIBRATION_PIN = 23
 GPIO.setup(VIBRATION_PIN, GPIO.OUT)
 
-conn = sqlite3.connect('./quizzes.db')
+conn = sqlite3.connect('/home/pi/Project/quizzes.db')
 cursor = conn.cursor()
 cursor.execute("SELECT Question, Answer FROM quizzes")
 quizzes_data = cursor.fetchall()
@@ -132,9 +137,11 @@ def ocr_processing_thread(frame):
 
 def capture_and_process():
     picam2 = Picamera2()
-    picam2.configure(picam2.create_preview_configuration(main={'size': (3840, 2160)}))
-    picam2.set_controls({'AfMode': 2, 'AfTrigger' : '0', 'AeEnable' :'1'})
 
+    picam2.configure(picam2.create_preview_configuration(main={'size': (3840, 2160)}))
+    picam2.set_controls({'AfMode':2,'AfTrigger':0,'AeEnable': 1})
+   
+   
     # picam2.start_preview(Preview.QTGL)s
     
     # threading.Thread(target=ocr_processing_thread, daemon=True).start()
@@ -159,3 +166,5 @@ def capture_and_process():
 if __name__ == "__main__":
     vibrate(3)
     capture_and_process()
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    
+
